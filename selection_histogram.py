@@ -27,13 +27,16 @@ df = simulate_data(5000)
 x = df.x
 y = df.y
 
+source = ColumnDataSource(df)
+
+
 NBINS = 20
 
 hover = HoverTool(
         tooltips=[
             ("index", "$index"),
             ("(x,y)", "($x, $y)"),
-            ("desc", "@desc"),
+            ("label", "@label"),
         ]
     )
 
@@ -48,7 +51,7 @@ p.background_fill_color = "#fafafa"
 #p.select(LassoSelectTool).select_every_mousemove = False
 
 
-r = p.scatter(x, y, size=3, color="#3A5785", alpha=0.6)
+r = p.scatter('x', 'y', size=3, color="#3A5785", alpha=0.6, source=source)
 
 # create the horizontal histogram
 hhist, hedges = np.histogram(x, bins=NBINS, normed=True)
