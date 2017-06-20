@@ -13,48 +13,66 @@ in your browser.
 '''
 
 import numpy as np
+import pandas as pd
 
 from bokeh.layouts import row, column
 from bokeh.models import (BoxSelectTool, LassoSelectTool, 
                         Spacer, ColumnDataSource, Range1d, HoverTool)
+from bokeh.charts import Scatter
 from bokeh.plotting import figure, curdoc
+from bokeh.palettes import Spectral4
 
+from utils import Mag, MagDiff, StarGalaxyLabeller, makeDataSource
 
+# from fake_data import simulate_data
+# df = simulate_data(5000)
 
-from fake_data import simulate_data
+# df = pd.read_hdf('data/forced.h5', 'df')
+# x = df.x
+# y = df.y
 
-df = simulate_data(5000)
-x = df.x
-y = df.y
+catalog = pd.read_hdf('data/forced.h5', 'df')
 
-source = ColumnDataSource(df)
-
+xFunc = Mag('base_PsfFlux')
+yFunc = MagDiff('modelfit_CModel', 'base_PsfFlux')
+labeller = StarGalaxyLabeller()
+source = makeDataSource(catalog, xFunc, yFunc, labeller) 
+df = makeDataSource(catalog, xFunc, yFunc, labeller, df=True)
 
 NBINS = 20
 
 hover = HoverTool(
         tooltips=[
             ("index", "$index"),
-            ("(x,y)", "($x, $y)"),
-            ("label", "@label"),
+            ("(x,y)", "(${0}, ${1})".format('x', 'y')),
+            ("label", "$label")
         ]
     )
 
-TOOLS=['pan','wheel_zoom','xbox_select','reset', hover]
+TOOLS=['pan','wheel_zoom','box_select','box_zoom','reset', hover]
 
-# create the scatter plot
-p = figure(tools=TOOLS, plot_width=600, plot_height=600, min_border=10, min_border_left=50,
-           toolbar_location="above", x_axis_location="below", y_axis_location="right",
-           title="Linked Histograms", active_drag='xbox_select', active_scroll='wheel_zoom')
-p.background_fill_color = "#fafafa"
+    # create the scatter plot
+    # p = figure(tools=TOOLS, plot_width=600, plot_height=600, min_border=10, min_border_left=50,
+#            toolbar_location="above", x_axis_location="below", y_axis_location="right",
+#            title="Linked Histograms", active_drag='box_select', active_scroll='wheel_zoom')
+# p.background_fill_color = "#fafafa"
 # p.select(BoxSelectTool).select_every_mousemove = False
 #p.select(LassoSelectTool).select_every_mousemove = False
 
+# r = p.scatter('x', 'y', size=3, color='blue', alpha=0.6, source=source)
 
-r = p.scatter('x', 'y', size=3, color="#3A5785", alpha=0.6, source=source)
+p = Scatter(source.data, x='x', y='y', color='label', tools=TOOLS,
+            plot_width=600, plot_height=600, min_border=10, min_border_left=50,
+           toolbar_location="above", 
+           title="Linked Histograms", active_drag='box_select', active_scroll='wheel_zoom',
+           background_fill_color='#fafafa')
+
+p.legend.click_policy = 'hide'
+
+# r = p.scatter(df, x='x', y='y', size=3, color='label', alpha=0.6)#, source=source)
 
 # create the horizontal histogram
-hhist, hedges = np.histogram(x, bins=NBINS, normed=True)
+hhist, hedges = np.histogram(source.data['x'], bins=NBINS, normed=True)
 hzeros = np.zeros(len(hedges)-1)
 hmax = max(hhist)*1.1
 
@@ -72,7 +90,7 @@ hh1 = ph.quad(bottom=0, left=hedges[:-1], right=hedges[1:], top=hzeros, alpha=0.
 # hh2 = ph.quad(bottom=0, left=hedges[:-1], right=hedges[1:], top=hzeros, alpha=0.1, **LINE_ARGS)
 
 # create the vertical histogram
-vhist, vedges = np.histogram(y, bins=NBINS, normed=True)
+vhist, vedges = np.histogram(source.data['y'], bins=NBINS, normed=True)
 vzeros = np.zeros(len(vedges)-1)
 vmax = max(vhist)*1.1
 
@@ -93,15 +111,15 @@ curdoc().title = "Selection Histogram"
 
 def update(attr, old, new):
     inds = np.array(new['1d']['indices'])
-    if len(inds) == 0 or len(inds) == len(x):
+    if len(inds) == 0 or len(inds) == len(source.data['x']):
         hhist1 = hzeros
         vhist1 = vzeros
         vedges1 = vedges 
     else:
-        neg_inds = np.ones_like(x, dtype=np.bool)
+        neg_inds = np.ones_like(source.data['x'], dtype=np.bool)
         neg_inds[inds] = False
-        hhist1, _ = np.histogram(x[inds], bins=hedges, normed=True)
-        vhist1, vedges1 = np.histogram(y[inds], bins=NBINS, normed=True)
+        hhist1, _ = np.histogram(source.data['x'][inds], bins=hedges, normed=True)
+        vhist1, vedges1 = np.histogram(source.data['y'][inds], bins=NBINS, normed=True)
         # hhist2, _ = np.histogram(x[neg_inds], bins=hedges, normed=True)
         # vhist2, vedges2 = np.histogram(y[neg_inds], bins=NBINS, normed=True)
 
@@ -117,4 +135,4 @@ def update(attr, old, new):
     pv.x_range.end = max(vhist1.max()*1.1, vmax)
     # cursession().store_objects(pv) 
 
-r.data_source.on_change('selected', update)
+p.on_change('selected', update)
