@@ -13,6 +13,10 @@ class Column(Functor):
     def __init__(self, col):
         self.col = col
 
+    @property
+    def name(self):
+        return self.col
+
     def _func(self, catalog):
         return catalog[self.col]
 
@@ -21,10 +25,14 @@ class CoordColumn(Column):
         return np.rad2deg(catalog[self.col])
 
 class RAColumn(CoordColumn):
-    col = 'coord_ra'
+    name = 'RA'
+    def __init__(self):
+        self.col = 'coord_ra'
 
 class DecColumn(CoordColumn):
-    col = 'coord_dec'
+    name = 'Dec'
+    def __init__(self):
+        self.col = 'coord_dec'
 
 def fluxName(col):
     if not col.endswith('_flux'):
@@ -68,23 +76,25 @@ class Sizer(object):
     def __call__(self, catalog):
         return np.ones(len(catalog)) * self.size
 
-def makeDataSource(catalog, xFunc, yFunc, labeller, sizer=Sizer(1), df=False):
-    x = xFunc(catalog)
-    y = yFunc(catalog)
-    label = labeller(catalog)
-    size = sizer(catalog)
+class DeconvolvedMoments(Functor):
+    name = 'Deconvolved Moments'
 
-    ok = (np.isfinite(x) & np.isfinite(y))
-    x = x[ok]
-    y = y[ok]
-    label = label[ok]
-    size = size[ok]
-    sourceId = np.array(catalog['id'])[ok]
+    def __init__(self, *args, **kwargs):
+        pass
 
-    d = {'x':x, 'y':y, 'sourceId':sourceId, 'label':label, 'size':size}
-    if df:
-        return pd.DataFrame(d)
-    else:
-        return ColumnDataSource(d)
-
+    def _func(self, catalog):
+        """Calculate deconvolved moments"""
+        if "ext_shapeHSM_HsmSourceMoments" in catalog:
+            hsm = catalog["ext_shapeHSM_HsmSourceMoments_xx"] + catalog["ext_shapeHSM_HsmSourceMoments_yy"]
+        else:
+            hsm = np.ones(len(catalog))*np.nan
+        sdss = catalog["base_SdssShape_xx"] + catalog["base_SdssShape_yy"]
+        if "ext_shapeHSM_HsmPsfMoments_xx" in catalog:
+            psf = catalog["ext_shapeHSM_HsmPsfMoments_xx"] + catalog["ext_shapeHSM_HsmPsfMoments_yy"]
+        else:
+            # LSST does not have shape.sdss.psf.  Could instead add base_PsfShape to catalog using
+            # exposure.getPsf().computeShape(s.getCentroid()).getIxx()
+            # raise TaskError("No psf shape parameter found in catalog")
+            raise RuntimeError('No psf shape parameter found in catalog')
+        return np.where(np.isfinite(hsm), hsm, sdss) - psf
 
