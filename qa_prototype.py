@@ -277,7 +277,7 @@ class QAScatterPlot(QAPlot):
                         ]
                     )
 
-        TOOLS=['pan','wheel_zoom','box_zoom','box_select','reset', hover]
+        TOOLS=['pan','wheel_zoom','box_zoom','box_select','lasso_select','reset', hover]
         
         x_range, y_range = self._get_default_range()
         fig = figure(tools=TOOLS, x_range=x_range, y_range=y_range,
