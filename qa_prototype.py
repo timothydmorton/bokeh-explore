@@ -21,7 +21,7 @@ from bokeh.layouts import row, column
 from bokeh.models import (BoxSelectTool, LassoSelectTool, 
                         Spacer, ColumnDataSource, Range1d, HoverTool)
 from bokeh.models.widgets import Slider, Button, DataTable, TableColumn, NumberFormatter
-from bokeh.models.widgets import Panel, Tabs
+from bokeh.models.widgets import Panel, Tabs, Select
 from bokeh.charts import Scatter
 from bokeh.plotting import figure, curdoc
 from bokeh.palettes import Spectral4, Category10, Dark2
@@ -54,8 +54,9 @@ class QAPlot(object):
         self._labeller = labeller
 
     def _reset(self):
-        self._sources = None
         self._df = None
+        self._update_sources()
+        self._update_figure()
         
     @property
     def labeller(self):
@@ -67,9 +68,15 @@ class QAPlot(object):
         self._reset()
                 
     def _make_sources(self):
-        
         return {k:ColumnDataSource(self.df.query('label=="{0}"'.format(k))) 
                  for k in self.labels}            
+
+    def _update_sources(self):
+        for k, src in self.sources.items():
+            src.data = src.from_df(self.df.query('label=="{0}"'.format(k)))
+
+    def _update_figure(self):
+        raise NotImplementedError
 
     @property
     def df(self):
@@ -254,6 +261,11 @@ class QAScatterPlot(QAPlot):
         #      'ra':ra, 'dec':dec}        
         # return pd.DataFrame(d)    
 
+    def _get_default_range(self):
+        xlo, xhi = self.df[self._xCol].quantile([0., 0.99])
+        ylo, yhi = self.df[self._yCol].quantile([0.01,0.99])        
+        return (xlo, xhi), (ylo, yhi)
+
     def _make_figure(self):
         df = self.df
         
@@ -267,9 +279,8 @@ class QAScatterPlot(QAPlot):
 
         TOOLS=['pan','wheel_zoom','box_zoom','box_select','reset', hover]
         
-        xlo, xhi = df[self._xCol].quantile([0., 0.99])
-        ylo, yhi = df[self._yCol].quantile([0.001,0.999])
-        fig = figure(tools=TOOLS, x_range=(xlo, xhi), y_range=(ylo, yhi),
+        x_range, y_range = self._get_default_range()
+        fig = figure(tools=TOOLS, x_range=x_range, y_range=y_range,
                         **self.figure_kwargs)
     
         size_scale = LinearInterpolator(x=[min(df['size']), max(df['size'])],
@@ -282,7 +293,9 @@ class QAScatterPlot(QAPlot):
             src = self.sources[label]        
             r = fig.circle(self._xCol, self._yCol, source=src, line_color=None,
                      color=color, legend=label,
-                     size=dict(field='size', transform=size_scale), alpha=self.alpha)
+                     # size=dict(field='size', transform=size_scale), 
+                     size='size',
+                     alpha=self.alpha)
 
             selected_circle = Circle(fill_alpha=0.6, fill_color=color, line_color=None)
             r.selection_glyph = selected_circle
@@ -297,6 +310,16 @@ class QAScatterPlot(QAPlot):
 
         self._renderers = renderers
         self._figure = fig
+
+    def _update_figure(self):
+        self._figure.xaxis.axis_label = self.xLabel
+        self._figure.xaxis.axis_label = self.xLabel
+        x_range, y_range = self._get_default_range()
+        self._figure.x_range.start = x_range[0]
+        self._figure.x_range.end = x_range[1]
+        self._figure.y_range.start = y_range[0]
+        self._figure.y_range.end = y_range[1]
+
 
 class ChildQAPlot(QAPlot):
     def __init__(self, parent, **kwargs):
@@ -435,7 +458,6 @@ class QATable(object):
         src = self.parent.sources[label]
 
         self._sources[label].data = {k:np.array(src.data[k])[inds] for k in src.data.keys()}
-        print(3)
 
     def _make_tabs(self):
         columns = [TableColumn(field=c, title=c) for c in self.parent.columns if c not in self.skip]
@@ -452,15 +474,52 @@ class QATable(object):
 
 
 catalog = pd.read_hdf('data/forced.h5', 'df')
-xFunc = Mag('base_PsfFlux')
-yFunc = MagDiff('modelfit_CModel', 'base_PsfFlux')
-#yFunc = DeconvolvedMoments()
+
+xFuncs = {'base_PsfFlux' : Mag('base_PsfFlux'),
+          'modelfit_CModel' : Mag('modelfit_CModel')}
+yFuncs = {'modelfit_CModel - base_PsfFlux' : MagDiff('modelfit_CModel', 'base_PsfFlux'),
+          'Deconvolved Moments' : DeconvolvedMoments()}
+xFunc = xFuncs['base_PsfFlux']
+yFunc = yFuncs['modelfit_CModel - base_PsfFlux']
 
 s = QAScatterPlot(catalog, xFunc=xFunc, yFunc=yFunc)
 hx = QAHistogram(s, 'x')
 hy = QAHistogram(s, 'y')
-sky = QASkyPlot(s, alpha=1., unselected_alpha=0., size=2)
+sky = QASkyPlot(s, unselected_alpha=0., size=2)
 table = QATable(s)
+
+size_slider = Slider(start=1, end=10, step=1, value=1, title="Circle Size")
+alpha_slider = Slider(start=0, end=1, step=0.01, value=0.8, title='alpha')
+
+x_select = Select(title="X-axis:", value='base_PsfFlux', options=xFuncs.keys())
+y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=yFuncs.keys())
+
+def update_radius(attr, old, new):
+    for _, src in s.sources.items():
+        src.data['size'] = np.ones(len(src.data['size']))*new
+
+def update_alpha(attr, old, new):
+    for r in s.renderers.values() + sky.renderers.values():
+        r.glyph.fill_alpha = new
+
+def update_yFunc(attr, old, new):
+    s.yFunc = yFuncs[new]
+    for label in s.labels:
+        for h in [hx, hy]:
+            h.update_histogram(label)
+        table.update_sources(label)
+
+def update_xFunc(attr, old, new):
+    s.xFunc = xFuncs[new]
+    for label in s.labels:
+        for h in [hx, hy]:
+            h.update_histogram(label)
+        table.update_sources(label)
+
+size_slider.on_change('value', update_radius)
+alpha_slider.on_change('value', update_alpha)
+y_select.on_change('value', update_yFunc)
+x_select.on_change('value', update_xFunc)
 
 # skip = ('x', 'y', 'size')
 # columns = [TableColumn(field=c, title=c) for c in s.columns if c not in skip]
@@ -469,7 +528,9 @@ table = QATable(s)
 
 # tabs = Tabs(tabs=[Panel(child=data_tables[l], title=l) for l in s.labels])
 
-l = layout([[s.figure, sky.figure], [hx.figure, hy.figure], [table.tabs]])
+l = layout([[s.figure, sky.figure, column([size_slider, alpha_slider])], 
+            [hx.figure, hy.figure, column([x_select, y_select])], 
+            [table.tabs]])
 
 curdoc().add_root(l)
 
