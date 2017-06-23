@@ -344,7 +344,7 @@ class QAHistogram(ChildQAPlot):
     _figure_kwargs = dict(toolbar_location=None, plot_width=300, plot_height=300,
                          y_axis_location=None, active_drag='xpan', active_scroll='xwheel_zoom')
 
-    def __init__(self, parent, axis, bins=20, **kwargs):
+    def __init__(self, parent, axis, bins='auto', **kwargs):
         """
         axis: 'x' or 'y'
         """
