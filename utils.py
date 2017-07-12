@@ -9,6 +9,21 @@ class Functor(object):
     def __call__(self, catalog):
         return np.array(self._func(catalog))
 
+class TestFunctor(Functor):
+    name = 'test'
+
+    def __init__(self, n=None, seed=1234):
+        self.n = n
+        self.seed = seed
+
+    def __call__(self, catalog):
+        np.random.seed(self.seed)
+        n = len(catalog) if self.n is None else self.n
+        u = np.random.random(n)
+        x = np.ones(n)
+        x[u < 0.5] = -1
+        return x
+
 class Column(Functor):
     def __init__(self, col):
         self.col = col
@@ -62,7 +77,6 @@ class MagDiff(Functor):
     @property
     def name(self):
         return '(mag_{0} - mag_{1})'.format(self.col1, self.col2)
-
 
 class StarGalaxyLabeller(object):
     _column = "base_ClassificationExtendedness_value"
