@@ -244,14 +244,26 @@ class QAScatterPlot(QAPlot):
 
     def selected_column(self, label, col, allow_empty=False):
         logging.debug('{}: getting {} column...'.format(label, col))
-        inds = self.selected_inds(label)
-        src = self.renderers[label].data_source
-        data = np.array(src.data[col])
-        # There's a bug with 'allow_empty', so cutting it for now.
-        if len(inds) > 0:# or allow_empty:
-            # if allow_empty:
-            #     logging.info('{}: allowing empty selection for {}'.format(label, col))
-            data = data[inds]
+        if label=='all':
+            data = np.array([])
+            for l in self.labels:
+                inds = self.selected_inds(l)
+                src = self.renderers[l].data_source
+                if len(inds)==0:
+                    data = np.concatenate([data, np.array(src.data[col])])
+                else:   
+                    data = np.concatenate([data, np.array(src.data[col])[inds]])
+        else:
+            inds = self.selected_inds(label)
+            src = self.renderers[label].data_source
+            data = np.array(src.data[col])
+
+            # There's a bug with 'allow_empty', so cutting it for now.
+            if len(inds) > 0:# or allow_empty:
+                # if allow_empty:
+                #     logging.info('{}: allowing empty selection for {}'.format(label, col))
+                data = data[inds]
+
         logging.debug(data)
         return data
 
@@ -417,7 +429,7 @@ class QAHistogram(ChildQAPlot):
             self._hists = {}
 
         n_selected = np.array([len(self.parent.selected_inds(l))
-                        for l in self.labels])
+                        for l in self.labels if l != 'all'])
         allow_empty = False
         # print(n_selected, np.any(n_selected==0), np.all(n_selected==0))
         if np.any(n_selected==0) and not np.all(n_selected==0):
@@ -449,6 +461,10 @@ class QAHistogram(ChildQAPlot):
 
         return self._hists
 
+    @property
+    def labels(self):
+        return list(self.parent.labels) + ['all']
+
     def _make_figure(self):
         df = self.df
 
@@ -466,8 +482,10 @@ class QAHistogram(ChildQAPlot):
                     line_color="#3A5785", legend=label, alpha=0.4)
             renderers[label] = h
 
+        renderers['all'].visible = False
+
         fig.legend.location='top_left'
-        fig.legend.click_policy = 'hide'    
+        fig.legend.click_policy = 'hide'
 
         if self.axis == 'x':
             axis_label = self.parent.xLabel
@@ -670,6 +688,7 @@ def update_histograms(label):
     def update(attr, old, new):
         for h in [hx, hy]:
             h.update_histogram(label)
+            h.update_histogram('all')
         table.update_sources(label)
         update_sky_colormap(attr, old, new)
     return update
