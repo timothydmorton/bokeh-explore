@@ -341,14 +341,29 @@ class QAScatterPlot(QAPlot):
     def _get_default_range(self):
         x = self.df[self._xCol]
         y = self.df[self._yCol]
+        xMed = np.median(x)
+        yMed = np.median(y)
+        xMAD = np.median(np.absolute(x - xMed))
+        yMAD = np.median(np.absolute(y - yMed))
+
+        ylo = yMed - 5*yMAD
+        yhi = yMed + 5*yMAD
+
         xlo, xhi = x.quantile([0., 0.99])
-        ylo, yhi = y.quantile([0.01,0.99])        
-        xBuffer = np.std(x)/4.
-        yBuffer = np.std(y)/4.
+        xBuffer = xMAD/4.
         xlo -= xBuffer
         xhi += xBuffer
-        ylo -= yBuffer
-        yhi += yBuffer
+
+        # xlo, xhi = x.quantile([0., 0.99])
+        # ylo, yhi = y.quantile([0.01,0.99])        
+
+        # xBuffer = xMAD/4.
+        # yBuffer = yMAD/4.
+        # xlo -= xBuffer
+        # xhi += xBuffer
+        # ylo -= yBuffer
+        # yhi += yBuffer
+
         return (xlo, xhi), (ylo, yhi)
 
     def _make_figure(self, title=True):
@@ -485,6 +500,19 @@ class QAHistogram(ChildQAPlot):
 
         data = self.parent.selected_column(label, self.axis, allow_empty=allow_empty)
         ok = np.isfinite(data)
+        # Also, constrain data to be within axis bounds.
+        #  (This is a temporary fix for large-dynamic-range slow-histogram issue)
+
+        if self.axis == 'x':
+            rng = self.parent.figure.x_range
+        elif self.axis == 'y':
+            rng = self.parent.figure.y_range
+
+        lo = rng.start
+        hi = rng.end
+
+        ok &= (data > lo) & (data < hi)
+
         data = data[ok].copy()
         if len(data) > 0:
             logging.debug('data range for {} {}-axis: {}, {}'.format(label, self.axis, data.min(), data.max()))
