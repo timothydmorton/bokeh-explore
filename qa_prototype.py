@@ -417,7 +417,7 @@ class QAScatterPlot(QAPlot):
 
     def _update_figure(self):
         self._figure.xaxis.axis_label = self.xLabel
-        self._figure.xaxis.axis_label = self.xLabel
+        self._figure.yaxis.axis_label = self.yLabel
         x_range, y_range = self._get_default_range()
         self._figure.x_range.start = x_range[0]
         self._figure.x_range.end = x_range[1]
