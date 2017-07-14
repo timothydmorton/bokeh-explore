@@ -21,7 +21,7 @@ from bokeh.layouts import row, column
 from bokeh.models import (BoxSelectTool, LassoSelectTool, ColorBar,
                         Spacer, ColumnDataSource, Range1d, HoverTool)
 from bokeh.models.widgets import Slider, Button, DataTable, TableColumn, NumberFormatter
-from bokeh.models.widgets import Panel, Tabs, Select, RadioButtonGroup
+from bokeh.models.widgets import Panel, Tabs, Select, RadioButtonGroup, TextInput, PreText
 from bokeh.models.mappers import LinearColorMapper
 # from bokeh.models.tickers import LinearTicker
 from bokeh.charts import Scatter
@@ -44,10 +44,14 @@ class QAPlot(object):
     def __init__(self, catalog, labeller=StarGalaxyLabeller(), palette=Category10[10],
                  include_labels=None, **kwargs):
         self._catalog = catalog
+        self._full_catalog = catalog.copy()
+
         self.palette = palette
         self._include_labels = include_labels
+        self.children = []
 
         self._df = None
+        self._query = None
         
         # This will be a dict, with keys as labels
         self._sources = None
@@ -55,7 +59,8 @@ class QAPlot(object):
         # Figures, etc.
         self._figure = None
         self._renderers = None
-        
+        self._empty_selections = None
+
         # Functors
         self._labeller = labeller
 
@@ -70,10 +75,33 @@ class QAPlot(object):
         self._catalog = new
         self._reset()
 
+    def query_catalog(self, query):
+        if not query:
+            self.reset_catalog()
+        else:
+            self.catalog = self._full_catalog.query(query)
+            self._query = query
+
+    def reset_catalog(self):
+        self.catalog = self._full_catalog.copy()
+
     def _reset(self):
         self._df = None
+        self._query = None
+        self.clear_selections()
         self._update_sources()
-        self._update_figure()
+        try:
+            self._update_figure()
+        except NotImplementedError: # clean up so this is not necessary!
+            pass
+        for p in self.children:
+            p._reset()
+
+        # for p in self.children:
+        #     try:
+        #         p._update_figure()
+        #     except NotImplementedError: # temporary...
+        #         pass
         
     @property
     def labeller(self):
@@ -131,6 +159,11 @@ class QAPlot(object):
         if self._renderers is None:
             self._make_figure()
         return self._renderers
+
+    def clear_selections(self):
+        if self._empty_selections is not None:
+            for l, sel in self._empty_selections.items():
+                self._renderers[l].data_source.selected = sel
 
     def _make_df(self):
         raise NotImplementedError
@@ -264,7 +297,7 @@ class QAScatterPlot(QAPlot):
                 #     logging.info('{}: allowing empty selection for {}'.format(label, col))
                 data = data[inds]
 
-        logging.debug(data)
+        # logging.debug(data)
         return data
 
     def _make_df(self, q=None):
@@ -318,7 +351,7 @@ class QAScatterPlot(QAPlot):
         yhi += yBuffer
         return (xlo, xhi), (ylo, yhi)
 
-    def _make_figure(self):
+    def _make_figure(self, title=True):
         df = self.df
         
         hover = HoverTool(
@@ -366,8 +399,21 @@ class QAScatterPlot(QAPlot):
         fig.xaxis.axis_label = self.xLabel
         fig.yaxis.axis_label = self.yLabel
 
+        self._empty_selections = {l:r.data_source.selected for l,r in renderers.items()}
+
         self._renderers = renderers
         self._figure = fig
+        if title:
+            self.update_title()
+
+    def update_title(self):
+        n_sources = [len(self.selected_column(l, 'y')) for l in self.include_labels]
+        total = sum(n_sources)
+        title = '{} objects selected: '.format(total)
+        for l,n in zip(self.labels, n_sources):
+            title += '{0} {1}, '.format(n, l)
+        title = title[:-2]
+        self.figure.title.text = title
 
     def _update_figure(self):
         self._figure.xaxis.axis_label = self.xLabel
@@ -377,12 +423,13 @@ class QAScatterPlot(QAPlot):
         self._figure.x_range.end = x_range[1]
         self._figure.y_range.start = y_range[0]
         self._figure.y_range.end = y_range[1]
-
+        self.update_title()
 
 class ChildQAPlot(QAPlot):
     def __init__(self, parent, **kwargs):
         self.parent = parent
         super(ChildQAPlot, self).__init__(parent.catalog, **kwargs)
+        self.parent.children.append(self)
 
     @property
     def sources(self):
@@ -504,15 +551,36 @@ class QAHistogram(ChildQAPlot):
         self.renderers[label].data_source.data = {'top' : hist,
                                                   'left' : edges[:-1],
                                                   'right' : edges[1:]}
-        # print(hist, edges)
-        # self.renderers[label].data_source.data['top'] = hist
-        # self.renderers[label].data_source.data['left'] = edges[:-1]
-        # self.renderers[label].data_source.data['right'] = edges[1:]
+
+    def _set_auto_range(self):
+        if self.axis=='x':
+            rng = self.parent._figure.x_range
+        elif self.axis=='y':
+            rng = self.parent._figure.y_range
+
+        minval = rng.start
+        maxval = rng.end
+
+        self._figure.x_range.start = minval
+        self._figure.x_range.end = maxval
+
+    def _update_figure(self):
+        for l in self.labels:
+            self.update_histogram(l)
+        self._set_auto_range()
 
 class QASkyPlot(ChildQAPlot, QAScatterPlot):
     _figure_kwargs = dict(plot_width=400, plot_height=400)
     _xCol = 'ra'
     _yCol = 'dec'
+
+    def _get_default_range(self):
+        xlo = np.rad2deg(self._full_catalog['coord_ra'].min())
+        xhi = np.rad2deg(self._full_catalog['coord_ra'].max())
+        ylo = np.rad2deg(self._full_catalog['coord_dec'].min())
+        yhi = np.rad2deg(self._full_catalog['coord_dec'].max())
+
+        return (xlo, xhi), (ylo, yhi)
 
     def _get_color_range(self):
         # First check to see if there's a selection
@@ -539,7 +607,7 @@ class QASkyPlot(ChildQAPlot, QAScatterPlot):
         # return self.df['y'].quantile([0.01, 0.99])
 
     def _make_figure(self, **kwargs):
-        super(QASkyPlot, self)._make_figure(**kwargs)
+        super(QASkyPlot, self)._make_figure(title=False, **kwargs)
 
         lo, hi = self._get_color_range()
         self.color_mapper = LinearColorMapper(palette='Viridis256', low=lo, high=hi)
@@ -551,6 +619,9 @@ class QASkyPlot(ChildQAPlot, QAScatterPlot):
                      label_standoff=12, border_line_color=None, location=(0,0))
 
         self._figure.add_layout(color_bar, 'right')
+
+    def update_title(self):
+        pass
 
     def update_color(self):
         lo, hi = self._get_color_range()
@@ -600,6 +671,8 @@ rootLogger.setLevel(logging.INFO)
 
 forced = pd.read_hdf('data/forced.h5', 'df')
 unforced = pd.read_hdf('data/unforced.h5', 'df')
+for c in ['coord_ra', 'coord_dec']:
+    print(c, forced[c].describe())
 # catalog = catalog.sample(50)
 
 xFuncs = {'base_PsfFlux' : Mag('base_PsfFlux'),
@@ -629,14 +702,27 @@ alpha_slider = Slider(start=0, end=1, step=0.01, value=0.8, title='alpha')
 x_select = Select(title="X-axis:", value='base_PsfFlux', options=xFuncs.keys())
 y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=yFuncs.keys())
 
+query_box = TextInput(value='', title="Query")
+query_pretext = PreText(text='', width=600, height=20)
+
 def update_catalog(attr, old, new):
     if new==0:
         s.catalog = forced
+        s.query_catalog(query_box.value)
     elif new==1:
         s.catalog = unforced
+        s.query_catalog(query_box.value)
+    elif isinstance(new, basestring): # this means entering a query
+        # print('query: "{}"'.format(new))
+        # print('length of catalog before query: {}'.format(len(s.catalog)))
+        s.query_catalog(new)
+        # print('length of catalog after query: {}'.format(len(s.catalog)))
+        query_pretext.text = new
+        
     for l in s.labels:
         update_histograms(l)
     update_sky_colormap(attr, old, new)
+    s.update_title()
 
 def update_radius(attr, old, new):
     for _, src in s.sources.items():
@@ -661,6 +747,7 @@ def update_yFunc(attr, old, new):
         for h in [hx, hy]:
             h.update_histogram(label)
         table.update_sources(label)
+    s.update_title()
 
 def update_xFunc(attr, old, new):
     s.xFunc = xFuncs[new]
@@ -668,8 +755,10 @@ def update_xFunc(attr, old, new):
         for h in [hx, hy]:
             h.update_histogram(label)
         table.update_sources(label)
+    s.update_title()
 
 radio_button_group.on_change('active', update_catalog)
+query_box.on_change('value', update_catalog)
 size_slider.on_change('value', update_radius)
 alpha_slider.on_change('value', update_alpha)
 y_select.on_change('value', update_yFunc)
@@ -677,7 +766,8 @@ x_select.on_change('value', update_xFunc)
 s.figure.y_range.on_change('start', update_sky_colormap)
 s.figure.y_range.on_change('end', update_sky_colormap)
 
-l = layout([[column(radio_button_group, s.figure), sky_tabs], 
+top_widgetbox = widgetbox(children=[radio_button_group, query_box]) 
+l = layout([[column(top_widgetbox, query_pretext, s.figure, width=600), sky_tabs], 
             [hx.figure, hy.figure, column([x_select, y_select]), column([size_slider, alpha_slider])], 
             [table.tabs]])
 
@@ -696,4 +786,4 @@ def update_histograms(label):
 
 for label, r in s.renderers.items():
     r.data_source.on_change('selected', update_histograms(label))
-
+    r.data_source.on_change('selected', lambda attr, old, new: s.update_title())
