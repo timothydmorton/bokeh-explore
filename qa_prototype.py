@@ -16,6 +16,7 @@ from __future__ import division, print_function
 
 import numpy as np
 import pandas as pd
+import re
 
 from bokeh.layouts import row, column
 from bokeh.models import (BoxSelectTool, LassoSelectTool, ColorBar,
@@ -738,7 +739,7 @@ custom_yBox = TextInput(value='', title="Custom Y-axis:")
 query_box = TextInput(value='', title="Query")
 query_pretext = PreText(text='', height=20)
 
-column_inspect_box = AutocompleteInput(title='Inspect Column:', completions=list(s.catalog.columns))
+column_inspect_box = AutocompleteInput(title='Inspect Column(s):', completions=list(s.catalog.columns))
 column_describe = PreText(text='', height=100)
 
 def update_catalog(attr, old, new):
@@ -801,6 +802,10 @@ def update_xFunc(attr, old, new):
     s.update_title()
 
 def update_column_describe(attr, old, new):
+    if re.search(',', new):
+        new = new.split(',')
+        new = [col.strip() for col in new]
+
     column_describe.text = str(s.catalog[new].describe())
 
 radio_button_group.on_change('active', update_catalog)
