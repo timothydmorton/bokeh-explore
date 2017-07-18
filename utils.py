@@ -2,6 +2,7 @@ from __future__ import print_function, division
 
 import pandas as pd
 import numpy as np
+import re
 
 from bokeh.models  import ColumnDataSource
 
@@ -23,6 +24,26 @@ class TestFunctor(Functor):
         x = np.ones(n)
         x[u < 0.5] = -1
         return x
+
+def mag_aware_eval(df, expr):
+    try:
+        expr_new = re.sub('mag\((\w+)\)', '-2.5*log(\g<1>)/log(10)', expr)
+        val = df.eval(expr_new, truediv=True)
+    except:
+        expr_new = re.sub('mag\((\w+)\)', '-2.5*log(\g<1>_flux)/log(10)', expr)
+        val = df.eval(expr_new, truediv=True)
+    return val
+
+class CustomFunctor(Functor):
+    def __init__(self, expr):
+        self.expr = expr
+
+    @property
+    def name(self):
+        return self.expr
+
+    def _func(self, catalog):
+        return mag_aware_eval(catalog, self.expr)
 
 class Column(Functor):
     def __init__(self, col):

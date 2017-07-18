@@ -22,6 +22,7 @@ from bokeh.models import (BoxSelectTool, LassoSelectTool, ColorBar,
                         Spacer, ColumnDataSource, Range1d, HoverTool)
 from bokeh.models.widgets import Slider, Button, DataTable, TableColumn, NumberFormatter
 from bokeh.models.widgets import Panel, Tabs, Select, RadioButtonGroup, TextInput, PreText
+from bokeh.models.widgets import AutocompleteInput
 from bokeh.models.mappers import LinearColorMapper
 # from bokeh.models.tickers import LinearTicker
 from bokeh.charts import Scatter
@@ -30,7 +31,7 @@ from bokeh.palettes import Spectral4, Category10, Dark2
 
 from utils import Mag, MagDiff, StarGalaxyLabeller, Sizer
 from utils import RAColumn, DecColumn
-from utils import DeconvolvedMoments, TestFunctor
+from utils import DeconvolvedMoments, TestFunctor, CustomFunctor
 
 from bokeh.plotting.figure import Figure
 from bokeh.models import CategoricalColorMapper, ColumnDataSource, LinearInterpolator
@@ -705,7 +706,8 @@ for c in ['coord_ra', 'coord_dec']:
 
 xFuncs = {'base_PsfFlux' : Mag('base_PsfFlux'),
           'modelfit_CModel' : Mag('modelfit_CModel')}
-yFuncs = {'modelfit_CModel - base_PsfFlux' : MagDiff('modelfit_CModel', 'base_PsfFlux'),
+# yFuncs = {'modelfit_CModel - base_PsfFlux' : MagDiff('modelfit_CModel', 'base_PsfFlux'),
+yFuncs = {'modelfit_CModel - base_PsfFlux' : CustomFunctor('mag(modelfit_CModel) - mag(base_PsfFlux)'),
           'Deconvolved Moments' : DeconvolvedMoments(),
           'test' : TestFunctor()}
 
@@ -730,8 +732,14 @@ alpha_slider = Slider(start=0, end=1, step=0.01, value=0.8, title='alpha')
 x_select = Select(title="X-axis:", value='base_PsfFlux', options=xFuncs.keys())
 y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=yFuncs.keys())
 
+custom_xBox = TextInput(value='', title="Custom X-axis:")
+custom_yBox = TextInput(value='', title="Custom Y-axis:")
+
 query_box = TextInput(value='', title="Query")
-query_pretext = PreText(text='', width=600, height=20)
+query_pretext = PreText(text='', height=20)
+
+column_inspect_box = AutocompleteInput(title='Inspect Column:', completions=list(s.catalog.columns))
+column_describe = PreText(text='', height=100)
 
 def update_catalog(attr, old, new):
     if new==0:
@@ -746,11 +754,12 @@ def update_catalog(attr, old, new):
         s.query_catalog(new)
         # print('length of catalog after query: {}'.format(len(s.catalog)))
         query_pretext.text = new
-        
+
     for l in s.labels:
         update_histograms(l)
     update_sky_colormap(attr, old, new)
     s.update_title()
+    column_inspect_box.completions = list(s.catalog.columns)
 
 def update_radius(attr, old, new):
     for _, src in s.sources.items():
@@ -770,7 +779,10 @@ def update_sky_colormap(attr, old, new):
         sky.update_color()
 
 def update_yFunc(attr, old, new):
-    s.yFunc = yFuncs[new]
+    try:
+        s.yFunc = yFuncs[new]
+    except KeyError:
+        s.yFunc = CustomFunctor(new)
     for label in s.labels:
         for h in [hx, hy]:
             h.update_histogram(label)
@@ -778,12 +790,18 @@ def update_yFunc(attr, old, new):
     s.update_title()
 
 def update_xFunc(attr, old, new):
-    s.xFunc = xFuncs[new]
+    try:
+        s.xFunc = xFuncs[new]
+    except KeyError:
+        s.xFunc = CustomFunctor(new)
     for label in s.labels:
         for h in [hx, hy]:
             h.update_histogram(label)
         table.update_sources(label)
     s.update_title()
+
+def update_column_describe(attr, old, new):
+    column_describe.text = str(s.catalog[new].describe())
 
 radio_button_group.on_change('active', update_catalog)
 query_box.on_change('value', update_catalog)
@@ -791,13 +809,19 @@ size_slider.on_change('value', update_radius)
 alpha_slider.on_change('value', update_alpha)
 y_select.on_change('value', update_yFunc)
 x_select.on_change('value', update_xFunc)
+custom_yBox.on_change('value', update_yFunc)
+custom_xBox.on_change('value', update_xFunc)
 s.figure.y_range.on_change('start', update_sky_colormap)
 s.figure.y_range.on_change('end', update_sky_colormap)
+column_inspect_box.on_change('value', update_column_describe)
 
-top_widgetbox = widgetbox(children=[radio_button_group, query_box]) 
-l = layout([[column(top_widgetbox, query_pretext, s.figure, width=600), sky_tabs], 
-            [hx.figure, hy.figure, column([x_select, y_select]), column([size_slider, alpha_slider])], 
-            [table.tabs]])
+# top_widgetbox = widgetbox(children=[radio_button_group, query_box]) 
+row1 = [column([radio_button_group, query_box, query_pretext]), column([x_select, y_select]), 
+        column([custom_xBox, custom_yBox]), column(column_inspect_box, column_describe)]
+row2 = [s.figure, sky_tabs]
+row3 = [hx.figure, hy.figure, column([size_slider, alpha_slider])]
+row4 = [table.tabs]
+l = layout([row1, row2, row3, row4])
 
 curdoc().add_root(l)
 
