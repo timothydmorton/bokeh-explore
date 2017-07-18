@@ -784,6 +784,9 @@ def update_yFunc(attr, old, new):
         s.yFunc = yFuncs[new]
     except KeyError:
         s.yFunc = CustomFunctor(new)
+        if new not in y_select.options:
+            y_select.options.append(new)
+        y_select.value = new
     for label in s.labels:
         for h in [hx, hy]:
             h.update_histogram(label)
@@ -795,6 +798,9 @@ def update_xFunc(attr, old, new):
         s.xFunc = xFuncs[new]
     except KeyError:
         s.xFunc = CustomFunctor(new)
+        if new not in x_select.options:
+            x_select.options.append(new)
+        x_select.value = new
     for label in s.labels:
         for h in [hx, hy]:
             h.update_histogram(label)
