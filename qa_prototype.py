@@ -836,9 +836,9 @@ column_inspect_box.on_change('value', update_column_describe)
 # l = layout([[row1], [row2], [row3], [row4]], responsive=True)
 l = layout([[radio_button_group, query_box, query_pretext, column_inspect_box], 
                 [x_select, custom_xBox, y_select, custom_yBox, column_describe],
-                [size_slider, alpha_slider],
+                [size_slider, alpha_slider, Spacer()],
                 [s.figure, sky_tabs],
-                [hx.figure, hy.figure],
+                [hx.figure, hy.figure, Spacer()],
                 [table.tabs]], 
                 responsive=True)
 
