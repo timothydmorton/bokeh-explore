@@ -701,8 +701,8 @@ rootLogger.setLevel(logging.INFO)
 
 forced = pd.read_hdf('data/forced.h5', 'df')
 unforced = pd.read_hdf('data/unforced.h5', 'df')
-for c in ['coord_ra', 'coord_dec']:
-    print(c, forced[c].describe())
+# for c in ['coord_ra', 'coord_dec']:
+#     print(c, forced[c].describe())
 # catalog = catalog.sample(50)
 
 xFuncs = {'base_PsfFlux' : Mag('base_PsfFlux'),
@@ -827,12 +827,12 @@ s.figure.y_range.on_change('end', update_sky_colormap)
 column_inspect_box.on_change('value', update_column_describe)
 
 # top_widgetbox = widgetbox(children=[radio_button_group, query_box]) 
-row1 = [column([radio_button_group, query_box, query_pretext]), column([x_select, y_select]), 
-        column([custom_xBox, custom_yBox]), column(column_inspect_box, column_describe)]
-row2 = [s.figure, sky_tabs]
-row3 = [hx.figure, hy.figure, column([size_slider, alpha_slider])]
-row4 = [table.tabs]
-l = layout([row1, row2, row3, row4])
+row1 = layout([[radio_button_group, query_box, query_pretext], [x_select, y_select], 
+        [custom_xBox, custom_yBox], [column_inspect_box, column_describe]], responsive=True)
+row2 = layout([[s.figure, sky_tabs]], responsive=True)
+row3 = layout([[hx.figure, hy.figure], [size_slider, alpha_slider]], responsive=True)
+row4 = layout([[table.tabs]], responsive=True)
+l = layout([[row1], [row2], [row3], [row4]], responsive=True)
 
 curdoc().add_root(l)
 
