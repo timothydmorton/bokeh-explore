@@ -827,12 +827,20 @@ s.figure.y_range.on_change('end', update_sky_colormap)
 column_inspect_box.on_change('value', update_column_describe)
 
 # top_widgetbox = widgetbox(children=[radio_button_group, query_box]) 
-row1 = layout([[radio_button_group, query_box, query_pretext], [x_select, y_select], 
-        [custom_xBox, custom_yBox], [column_inspect_box, column_describe]], responsive=True)
-row2 = layout([[s.figure, sky_tabs]], responsive=True)
-row3 = layout([[hx.figure, hy.figure], [size_slider, alpha_slider]], responsive=True)
-row4 = layout([[table.tabs]], responsive=True)
-l = layout([[row1], [row2], [row3], [row4]], responsive=True)
+# row1 = layout([[radio_button_group, query_box, query_pretext, column_inspect_box], 
+#                 [x_select, custom_xBox, y_select, custom_yBox, column_describe]], 
+#                 responsive=True)
+# row2 = layout([[s.figure, sky_tabs]], responsive=True)
+# row3 = layout([[hx.figure, hy.figure], [size_slider, alpha_slider]], responsive=True)
+# row4 = layout([[table.tabs]], responsive=True)
+# l = layout([[row1], [row2], [row3], [row4]], responsive=True)
+l = layout([[radio_button_group, query_box, query_pretext, column_inspect_box], 
+                [x_select, custom_xBox, y_select, custom_yBox, column_describe],
+                [size_slider, alpha_slider],
+                [s.figure, sky_tabs],
+                [hx.figure, hy.figure],
+                [table.tabs]], 
+                responsive=True)
 
 curdoc().add_root(l)
 
