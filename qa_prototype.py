@@ -723,7 +723,7 @@ sky_plots = [QASkyPlot(s, unselected_alpha=0., size=2, include_labels=[l])
 sky_tabs = Tabs(tabs=[Panel(child=sky.figure, title=l) for sky, l in zip(sky_plots, s.labels)])
 table = QATable(s)
 
-radio_button_group = RadioButtonGroup(labels=['forced', 'unforced'], active=0)
+radio_button_group = RadioButtonGroup(labels=['forced', 'unforced', 'forced_big', 'unforced_big'], active=0)
 
 # print(s.figure_kwargs)
 
@@ -737,7 +737,7 @@ custom_xBox = TextInput(value='', title="Custom X-axis:")
 custom_yBox = TextInput(value='', title="Custom Y-axis:")
 
 query_box = TextInput(value='', title="Query")
-query_pretext = PreText(text='', height=20)
+query_pretext = PreText(text='')
 
 column_inspect_box = AutocompleteInput(title='Inspect Column(s):', completions=list(s.catalog.columns))
 column_describe = PreText(text='', height=100)
@@ -836,7 +836,7 @@ column_inspect_box.on_change('value', update_column_describe)
 # l = layout([[row1], [row2], [row3], [row4]], responsive=True)
 l = layout([[radio_button_group, query_box, query_pretext, column_inspect_box], 
                 [x_select, custom_xBox, y_select, custom_yBox, column_describe],
-                [size_slider, alpha_slider, Spacer()],
+                [Spacer(), size_slider, alpha_slider, Spacer()],
                 [s.figure, sky_tabs],
                 [hx.figure, hy.figure, Spacer()],
                 [table.tabs]], 
