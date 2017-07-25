@@ -701,6 +701,7 @@ rootLogger.setLevel(logging.INFO)
 
 forced = pd.read_hdf('data/forced.h5', 'df')
 unforced = pd.read_hdf('data/unforced.h5', 'df')
+forced_big = pd.read_hdf('data/forced_big.h5', 'df')
 # for c in ['coord_ra', 'coord_dec']:
 #     print(c, forced[c].describe())
 # catalog = catalog.sample(50)
@@ -723,7 +724,7 @@ sky_plots = [QASkyPlot(s, unselected_alpha=0., size=2, include_labels=[l])
 sky_tabs = Tabs(tabs=[Panel(child=sky.figure, title=l) for sky, l in zip(sky_plots, s.labels)])
 table = QATable(s)
 
-radio_button_group = RadioButtonGroup(labels=['forced', 'unforced', 'forced_big', 'unforced_big'], active=0)
+radio_button_group = RadioButtonGroup(labels=['forced', 'unforced', 'forced_big'], active=0)
 
 # print(s.figure_kwargs)
 
@@ -748,6 +749,9 @@ def update_catalog(attr, old, new):
         s.query_catalog(query_box.value)
     elif new==1:
         s.catalog = unforced
+        s.query_catalog(query_box.value)
+    elif new==2:
+        s.catalog = forced_big
         s.query_catalog(query_box.value)
     elif isinstance(new, basestring): # this means entering a query
         # print('query: "{}"'.format(new))
