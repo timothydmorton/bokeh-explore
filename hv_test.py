@@ -11,6 +11,7 @@ from bokeh.models.widgets import Panel, Tabs, Select, RadioButtonGroup, TextInpu
 
 import datashader as ds
 from holoviews.operation.datashader import aggregate, shade, datashade, dynspread
+from datashader.colors import Sets1to3
 
 from utils import Mag, CustomFunctor, DeconvolvedMoments, RAColumn, DecColumn, StarGalaxyLabeller
 
@@ -128,7 +129,7 @@ class Dataset(object):
         xRange, yRange = self._get_default_range()
         self._xdim = hv.Dimension('x', label=self.xFunc.name, range=xRange)
         self._ydim = hv.Dimension('y', label=self.yFunc.name, range=yRange)
-        self._labeldim = hv.Dimension('label', label='Object Type')            
+        self._labeldim = hv.Dimension('label', label='Object Type', values=self.df.label.unique())            
 
     @property
     def xdim(self):
@@ -156,10 +157,16 @@ class Dataset(object):
         return self._points
 
     @property
+    def labels(self):
+        return self.labeldim.values
+
+    @property
     def datashaded(self):
         if self._datashaded is None:
-            self._datashaded = dynspread(datashade(self.points, normalization='log', 
-                        aggregator=ds.count_cat('label'))).opts(plot=dict(width=1000, height=800))
+            color_map = {l:c for l,c in zip(self.labels, Sets1to3)}
+            d = datashade(self.points, normalization='log', aggregator=ds.count_cat('label'),
+                          cmap=color_map)
+            self._datashaded = dynspread(d).opts(plot=dict(width=1000, height=800))
         return self._datashaded
 
 
@@ -185,7 +192,6 @@ dmap = data.datashaded
 def modify_doc(doc):
     # Create HoloViews plot and attach the document
     hvplot = renderer.get_plot(dmap, doc)
-    print(hvplot.state)
 
     x_select = Select(title="X-axis:", value='base_PsfFlux', options=list(xFuncs.keys()))
     y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=list(yFuncs.keys()))
