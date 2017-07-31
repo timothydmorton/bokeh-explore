@@ -26,7 +26,7 @@ from bokeh.models.widgets import Panel, Tabs, Select, RadioButtonGroup, TextInpu
 from bokeh.models.widgets import AutocompleteInput
 from bokeh.models.mappers import LinearColorMapper
 # from bokeh.models.tickers import LinearTicker
-from bokeh.charts import Scatter
+# from bokeh.charts import Scatter
 from bokeh.plotting import figure, curdoc
 from bokeh.palettes import Spectral4, Category10, Dark2
 
@@ -74,18 +74,23 @@ class QAPlot(object):
 
     @catalog.setter
     def catalog(self, new):
-        self._catalog = new
+        self._catalog = new.copy()
+        self._full_catalog = new.copy()
         self._reset()
+
+    @property
+    def full_catalog(self):
+        return self._full_catalog
 
     def query_catalog(self, query):
         if not query:
             self.reset_catalog()
         else:
-            self.catalog = self._full_catalog.query(query)
+            self.catalog = self.full_catalog.query(query)
             self._query = query
 
     def reset_catalog(self):
-        self.catalog = self._full_catalog.copy()
+        self.catalog = self.full_catalog.copy()
 
     def _reset(self):
         self._df = None
@@ -460,6 +465,9 @@ class ChildQAPlot(QAPlot):
     def labels(self):
         return self.parent.labels
 
+    @property
+    def full_catalog(self):
+        return self.parent.full_catalog
 
 class QAHistogram(ChildQAPlot):
 
@@ -605,10 +613,10 @@ class QASkyPlot(ChildQAPlot, QAScatterPlot):
     _yCol = 'dec'
 
     def _get_default_range(self):
-        xlo = np.rad2deg(self._full_catalog['coord_ra'].min())
-        xhi = np.rad2deg(self._full_catalog['coord_ra'].max())
-        ylo = np.rad2deg(self._full_catalog['coord_dec'].min())
-        yhi = np.rad2deg(self._full_catalog['coord_dec'].max())
+        xlo = np.rad2deg(self.full_catalog['coord_ra'].min())
+        xhi = np.rad2deg(self.full_catalog['coord_ra'].max())
+        ylo = np.rad2deg(self.full_catalog['coord_dec'].min())
+        yhi = np.rad2deg(self.full_catalog['coord_dec'].max())
 
         return (xlo, xhi), (ylo, yhi)
 
@@ -762,9 +770,15 @@ def update_catalog(attr, old, new):
 
     for l in s.labels:
         update_histograms(l)
+
+    s._update_figure()
+    for f in s.children:
+        f._update_figure()
+
     update_sky_colormap(attr, old, new)
     s.update_title()
     column_inspect_box.completions = list(s.catalog.columns)
+    # print('Full catalog length: {}'.format(len(s._full_catalog)))
 
 def update_radius(attr, old, new):
     for _, src in s.sources.items():
