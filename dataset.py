@@ -1,10 +1,7 @@
 import numpy as np
-import holoviews as hv
 import pandas as pd
+import holoviews as hv
 
-from bokeh.application.handlers import FunctionHandler
-from bokeh.application import Application
-from bokeh.io import show
 from bokeh.layouts import layout
 from bokeh.plotting import curdoc
 from bokeh.models.widgets import Panel, Tabs, Select, RadioButtonGroup, TextInput, PreText
@@ -12,12 +9,11 @@ from bokeh.palettes import Spectral4, Category10, Dark2
 
 import datashader as ds
 from holoviews.operation.datashader import aggregate, shade, datashade, dynspread
-from holoviews.operation import decimate
+from holoviews.operation import decimate, histogram
 decimate.max_samples=5000
 from datashader.colors import Sets1to3
 
 from utils import Mag, CustomFunctor, DeconvolvedMoments, RAColumn, DecColumn, StarGalaxyLabeller
-
 
 class Dataset(object):
     """
@@ -215,97 +211,3 @@ class Dataset(object):
         if self._decimated is None:
             self._decimated = decimate(self.points.opts(plot=dict(color_index='label'),
                                                         style=dict(cmap=self.color_list)))
-
-
-renderer = hv.renderer('bokeh').instance(mode='server')
-
-catalog = pd.read_hdf('data/forced_big.h5')
-
-xFuncs = {'base_PsfFlux' : Mag('base_PsfFlux'),
-          'modelfit_CModel' : Mag('modelfit_CModel')}
-yFuncs = {'modelfit_CModel - base_PsfFlux' : CustomFunctor('mag(modelfit_CModel) - mag(base_PsfFlux)'),
-          'Deconvolved Moments' : DeconvolvedMoments()}
-
-xFunc = xFuncs['base_PsfFlux']
-yFunc = yFuncs['modelfit_CModel - base_PsfFlux']
-labeller = StarGalaxyLabeller()
-data = Dataset(catalog, xFunc, yFunc, labeller)
-
-scatter_all = data.datashaded
-
-# dmap = dynspread(datashade(data.points, normalization='log', aggregator=ds.count_cat('label')))
-# dmap = dmap.opts(plot=dict(width=1000, height=800))
-
-def modify_doc(doc):
-    # Create HoloViews plot and attach the document
-    hvplot = renderer.get_plot(scatter_all, doc)
-
-    x_select = Select(title="X-axis:", value='base_PsfFlux', options=list(xFuncs.keys()))
-    y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=list(yFuncs.keys()))
-
-    def update_plot():
-        new_scatter_all = data.datashaded
-        new_plot = renderer.get_plot(new_scatter_all, doc)
-        l.children[0] = new_plot.state
-
-    def update_xFunc(attr, old, new):
-        try:
-            data.xFunc = xFuncs[new]
-        except KeyError:
-            data.xFunc = CustomFunctor(new)
-            if new not in x_select.options:
-                x_select.options.append(new)
-            x_select.value = new
-        update_plot()
-
-    def update_yFunc(attr, old, new):
-        try:
-            data.yFunc = yFuncs[new]
-        except KeyError:
-            data.yFunc = CustomFunctor(new)
-            if new not in y_select.options:
-                y_select.options.append(new)
-            y_select.value = new
-        update_plot()
-
-    x_select.on_change('value', update_xFunc)
-    y_select.on_change('value', update_yFunc)
-
-
-    pts = np.random.randn(10000)
-    points = hv.Points(pts)
-
-    def make_hist(nbins, normed, bin_range, **kwargs):
-        hist = hv.operation.histogram(points, num_bins=nbins, normed=normed, dimension='y',
-                                      bin_range=bin_range)
-        return hist
-
-    class HistExplorer(hv.streams.Stream):
-        nbins = param.Integer(default=20, bounds=(10,100))
-        normed = param.Boolean(default=True)
-        bin_range = param.Range(default=points.range('y'), bounds=points.range('y'))
-        
-        def view(self):
-            return hv.DynamicMap(make_hist, kdims=[], streams=[self])
-
-    explorer = HistExplorer()
-    parambokeh.Widgets(explorer, continuous_update=True, callback=explorer.event, on_init=True)
-    dhist = explorer.view()
-    histfig = renderer.get_plot(dhist, doc)
-
-    l = layout([[hvplot.state], 
-                [x_select, y_select],
-                [histfig]], sizing_mode='fixed')
-    
-
-
-    doc.add_root(l)
-    return doc
-
-# To display in the notebook
-# handler = FunctionHandler(modify_doc)
-# app = Application(handler)
-# show(app, notebook_url='localhost:8888')
-
-# To display in a script
-doc = modify_doc(curdoc()) 
