@@ -739,8 +739,8 @@ radio_button_group = RadioButtonGroup(labels=['forced', 'unforced', 'forced_big'
 size_slider = Slider(start=1, end=10, step=1, value=1, title="Circle Size")
 alpha_slider = Slider(start=0, end=1, step=0.01, value=0.8, title='alpha')
 
-x_select = Select(title="X-axis:", value='base_PsfFlux', options=xFuncs.keys())
-y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=yFuncs.keys())
+x_select = Select(title="X-axis:", value='base_PsfFlux', options=list(xFuncs.keys()))
+y_select = Select(title="Y-axis:", value='modelfit_CModel - base_PsfFlux', options=list(yFuncs.keys()))
 
 custom_xBox = TextInput(value='', title="Custom X-axis:")
 custom_yBox = TextInput(value='', title="Custom Y-axis:")
