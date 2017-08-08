@@ -216,9 +216,6 @@ class Dataset(object):
             self._decimated = decimate(self.points.opts(plot=dict(color_index='label'),
                                                         style=dict(cmap=self.color_list)))
 
-
-renderer = hv.renderer('bokeh').instance(mode='server')
-
 catalog = pd.read_hdf('data/forced_big.h5')
 
 xFuncs = {'base_PsfFlux' : Mag('base_PsfFlux'),
@@ -235,6 +232,8 @@ scatter_all = data.datashaded
 
 # dmap = dynspread(datashade(data.points, normalization='log', aggregator=ds.count_cat('label')))
 # dmap = dmap.opts(plot=dict(width=1000, height=800))
+
+renderer = hv.renderer('bokeh').instance(mode='server')
 
 def modify_doc(doc):
     # Create HoloViews plot and attach the document
@@ -271,31 +270,8 @@ def modify_doc(doc):
     x_select.on_change('value', update_xFunc)
     y_select.on_change('value', update_yFunc)
 
-
-    pts = np.random.randn(10000)
-    points = hv.Points(pts)
-
-    def make_hist(nbins, normed, bin_range, **kwargs):
-        hist = hv.operation.histogram(points, num_bins=nbins, normed=normed, dimension='y',
-                                      bin_range=bin_range)
-        return hist
-
-    class HistExplorer(hv.streams.Stream):
-        nbins = param.Integer(default=20, bounds=(10,100))
-        normed = param.Boolean(default=True)
-        bin_range = param.Range(default=points.range('y'), bounds=points.range('y'))
-        
-        def view(self):
-            return hv.DynamicMap(make_hist, kdims=[], streams=[self])
-
-    explorer = HistExplorer()
-    parambokeh.Widgets(explorer, continuous_update=True, callback=explorer.event, on_init=True)
-    dhist = explorer.view()
-    histfig = renderer.get_plot(dhist, doc)
-
     l = layout([[hvplot.state], 
-                [x_select, y_select],
-                [histfig]], sizing_mode='fixed')
+                [x_select, y_select]], sizing_mode='fixed')
     
 
 

@@ -28,26 +28,25 @@ class Dataset(object):
         self._labeller = labeller
 
         self._df = None
+        self._default_range = None
         self._color_list = None
 
         # Holoviews objects
+        self._points = None
+        self._points_list = None
         self._xdim = None
         self._ydim = None
         self._labeldim = None
-        self._points = None
-        self._datashaded = None
-        self._decimated = None
 
     def _reset(self):
         self._df = None
-        self._reset_hv()
-
-    def _reset_hv(self):
+        self._default_range = None
+        self._color_list = None
+        self._points = None
+        self._points_list = None
         self._xdim = None
         self._ydim = None
         self._labeldim = None
-        self._points = None
-        self._datashaded = None
 
     @property
     def catalog(self):
@@ -55,6 +54,8 @@ class Dataset(object):
 
     @catalog.setter
     def catalog(self, new):
+        if new is self._catalog:
+            return
         self._catalog = new
         self._reset()
 
@@ -64,6 +65,8 @@ class Dataset(object):
 
     @xFunc.setter
     def xFunc(self, new):
+        if new is self._xFunc:
+            return
         self._xFunc = new
         self._reset()
 
@@ -73,6 +76,8 @@ class Dataset(object):
 
     @yFunc.setter
     def yFunc(self, new):
+        if new is self._yFunc:
+            return
         self._yFunc = new
         self._reset()
 
@@ -82,6 +87,8 @@ class Dataset(object):
 
     @labeller.setter
     def labeller(self, new):
+        if new is self._labeller:
+            return
         self._labeller = new
         self._reset()
 
@@ -98,7 +105,7 @@ class Dataset(object):
                            'ra' : ra,
                            'dec' : dec})
 
-        df = df.replace([np.inf, -np.inf], np.nan).dropna(how='all')
+        df = df.replace([np.inf, -np.inf], np.nan).dropna(how='any')
         self._df = df
 
     @property
@@ -107,7 +114,7 @@ class Dataset(object):
             self._generate_df()
         return self._df
 
-    def _get_default_range(self):
+    def _calc_default_range(self):
         x = self.df['x'].dropna()
         y = self.df['y'].dropna()
         xMed = np.median(x)
@@ -126,8 +133,14 @@ class Dataset(object):
         # print(xlo, xhi, ylo, yhi)
         return (xlo, xhi), (ylo, yhi)
 
+    @property
+    def default_range(self):
+        if self._default_range is None:
+            self._default_range = self._calc_default_range()
+        return self._default_range
+
     def _make_dims(self):
-        xRange, yRange = self._get_default_range()
+        xRange, yRange = self.default_range
         self._xdim = hv.Dimension('x', label=self.xFunc.name, range=xRange)
         self._ydim = hv.Dimension('y', label=self.yFunc.name, range=yRange)
         self._labeldim = hv.Dimension('label', label='Object Type', values=self.df.label.unique())            
@@ -163,6 +176,15 @@ class Dataset(object):
             self._points = hv.Points(self.df, kdims=[self.xdim, self.ydim], 
                                      vdims=[self.labeldim])
         return self._points
+
+    @property
+    def points_list(self):
+        if self._points_list is None:
+            self._points_list = [hv.Points(self.df.query('label=="{}"'.format(l)),
+                                            kdims=[self.xdim, self.ydim],
+                                            vdims=[self.labeldim])
+                                    for l in self.labels]
+        return self._points_list
 
     # @property
     # def pointsDict(self):
